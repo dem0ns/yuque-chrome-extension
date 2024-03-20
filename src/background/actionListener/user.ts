@@ -1,11 +1,11 @@
-import { pick } from 'lodash';
+import {pick} from 'lodash';
 import chromeExtension from '@/background/core/chromeExtension';
-import { IOperateUserData, OperateUserEnum } from '@/isomorphic/background/user';
-import { IUser } from '@/isomorphic/interface';
-import { storage } from '@/isomorphic/storage';
-import { STORAGE_KEYS, YUQUE_DOMAIN } from '@/config';
+import {IOperateUserData, OperateUserEnum} from '@/isomorphic/background/user';
+import {IUser} from '@/isomorphic/interface';
+import {storage} from '@/isomorphic/storage';
+import {STORAGE_KEYS, YUQUE_DOMAIN} from '@/config';
 import HttpClient from '../core/httpClient';
-import { RequestMessage } from './index';
+import {RequestMessage} from './index';
 
 export const SERVER_URLS = {
   LOGIN_PAGE: `${YUQUE_DOMAIN}/login`,
@@ -17,12 +17,12 @@ const createLoginWindow = (): Promise<number> => {
   return new Promise(resolve => {
     chromeExtension.windows.create(
       {
-        focused: true,
-        width: 500,
-        height: 680,
-        left: 400,
-        top: 100,
-        type: 'panel',
+        // focused: true,
+        // width: 500,
+        // height: 680,
+        // left: 400,
+        // top: 100,
+        // type: 'panel',
         url: SERVER_URLS.LOGIN_PAGE,
       },
       res => resolve(res?.id as number),
@@ -64,16 +64,7 @@ export async function createUserActionListener(
   switch (type) {
     case OperateUserEnum.login: {
       try {
-        await httpClient.handleRequest('/api/accounts/logout', {
-          method: 'DELETE',
-        });
-        const windowId = await createLoginWindow();
-        await waitForWindowLogined(windowId);
-        await removeWindow(windowId);
-        const { data, status } = await httpClient.handleRequest('/api/mine', {
-          method: 'GET',
-        });
-        if (status === 200) {
+        const setUser = async (data: any) => {
           const accountInfo = (data as any).data as IUser;
           const value = pick(accountInfo, ['id', 'login', 'name', 'avatar_url']);
           const newValue = {
@@ -82,6 +73,24 @@ export async function createUserActionListener(
           };
           await storage.update(STORAGE_KEYS.CURRENT_ACCOUNT, newValue);
           callback(newValue);
+        };
+        const { data, status } = await httpClient.handleRequest('/api/mine', {
+          method: 'GET',
+        });
+        if (status === 401) {
+          await httpClient.handleRequest('/api/accounts/logout', {
+            method: 'DELETE',
+          });
+          const windowId = await createLoginWindow();
+          await waitForWindowLogined(windowId);
+          await removeWindow(windowId);
+          const { data } = await httpClient.handleRequest('/api/mine', {
+            method: 'GET',
+          });
+          await setUser(data);
+        }
+        if (status === 200) {
+          await setUser(data);
         }
         callback(null);
       } catch (error) {
